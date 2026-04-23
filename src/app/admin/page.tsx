@@ -52,6 +52,8 @@ export default function AdminPage() {
   const [faqError, setFaqError]       = useState(false);
   const [faqSearch, setFaqSearch]     = useState("");
 
+  const [systemHealth, setSystemHealth] = useState<"loading" | "online" | "offline">("loading");
+
   const fetchDocs = useCallback(async () => {
     try {
       const res = await chatApi.getDocuments();
@@ -70,7 +72,20 @@ export default function AdminPage() {
     finally  { setFaqLoading(false); }
   }, []);
 
-  useEffect(() => { fetchDocs(); fetchFaqs(); }, [fetchDocs, fetchFaqs]);
+  const fetchHealth = useCallback(async () => {
+    try {
+      const res = await chatApi.checkHealth();
+      if (res && res.status === "healthy") {
+        setSystemHealth("online");
+      } else {
+        setSystemHealth("offline");
+      }
+    } catch {
+      setSystemHealth("offline");
+    }
+  }, []);
+
+  useEffect(() => { fetchDocs(); fetchFaqs(); fetchHealth(); }, [fetchDocs, fetchFaqs, fetchHealth]);
 
   const handleUploadClick = () => fileInputRef.current?.click();
 
@@ -147,14 +162,14 @@ export default function AdminPage() {
     },
     {
       label:   "AI Engine",
-      value:   "Online",
+      value:   systemHealth === "loading" ? "Checking..." : systemHealth === "online" ? "Online" : "Offline",
       sub:     "Groq + Llama models",
       icon:    <Bot size={18} />,
-      color:   "emerald",
-      accent:  "from-emerald-500 to-teal-500",
-      bg:      "bg-emerald-500/10",
-      border:  "border-emerald-500/20",
-      text:    "text-emerald-400",
+      color:   systemHealth === "online" ? "emerald" : systemHealth === "offline" ? "red" : "amber",
+      accent:  systemHealth === "online" ? "from-emerald-500 to-teal-500" : systemHealth === "offline" ? "from-red-500 to-rose-500" : "from-amber-500 to-yellow-500",
+      bg:      systemHealth === "online" ? "bg-emerald-500/10" : systemHealth === "offline" ? "bg-red-500/10" : "bg-amber-500/10",
+      border:  systemHealth === "online" ? "border-emerald-500/20" : systemHealth === "offline" ? "border-red-500/20" : "border-amber-500/20",
+      text:    systemHealth === "online" ? "text-emerald-400" : systemHealth === "offline" ? "text-red-400" : "text-amber-400",
     },
   ];
 
@@ -196,10 +211,22 @@ export default function AdminPage() {
 
           {/* Right: status pills */}
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-medium text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              All systems operational
-            </div>
+            {systemHealth === "online" ? (
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-medium text-emerald-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                All systems operational
+              </div>
+            ) : systemHealth === "offline" ? (
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-[11px] font-medium text-red-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                System Offline
+              </div>
+            ) : (
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[11px] font-medium text-amber-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                Checking health...
+              </div>
+            )}
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-[11px] font-medium text-white/50">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
               v1.0 · Cortix Engine

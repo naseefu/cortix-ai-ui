@@ -98,4 +98,16 @@ export const chatApi = {
     const response = await axios.get(`http://localhost:8080/api/v1/analytics/faq/all`);
     return response.data as { total_unique: number; faqs: { query: string; count: number }[] };
   },
+
+  /**
+   * Check backend server health
+   */
+  async checkHealth() {
+    try {
+      const response = await axios.get(`http://localhost:8080/health`);
+      return response.data;
+    } catch {
+      return { status: "error" };
+    }
+  },
 };
