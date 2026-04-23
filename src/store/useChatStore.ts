@@ -4,6 +4,7 @@ import { chatApi } from '@/lib/api';
 export interface Message {
   role: 'user' | 'ai';
   content: string;
+  isNew?: boolean;
 }
 
 export interface SessionItem {

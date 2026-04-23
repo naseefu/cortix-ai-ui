@@ -94,7 +94,7 @@ export function ChatInput({
       });
 
       if (res.status === "success") {
-        addMessage({ role: "ai", content: res.data.content });
+        addMessage({ role: "ai", content: res.data.content, isNew: true });
         if (res.data.chatId) setActiveChatId(res.data.chatId);
         await loadSessions();
       }

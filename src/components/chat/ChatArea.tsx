@@ -104,7 +104,7 @@ export function ChatArea() {
       });
 
       if (res.status === "success") {
-        addMessage({ role: "ai", content: res.data.content });
+        addMessage({ role: "ai", content: res.data.content, isNew: true });
         if (res.data.chatId) setActiveChatId(res.data.chatId);
         await loadSessions();
       }
@@ -226,6 +226,7 @@ export function ChatArea() {
                 i === activeMessages.length - 1 ||
                 activeMessages[i + 1]?.role !== msg.role
               }
+              onStreamUpdate={() => scrollToBottom(false)}
             />
           ))}
 
@@ -278,7 +279,7 @@ export function ChatArea() {
       </AnimatePresence>
 
       {/* ── Input bar ────────────────────────────────────────────────── */}
-      <div className="absolute bottom-0 inset-x-0 z-10 px-4 pb-5 pt-8 bg-gradient-to-t from-[hsl(240,10%,4%)] via-[hsl(240,10%,4%)]/90 to-transparent">
+      <div className="absolute bottom-0 inset-x-0 z-10 px-4 pb-5 pt-12 bg-gradient-to-t from-[hsl(240,10%,4%)]/90 via-[hsl(240,10%,4%)]/60 to-transparent backdrop-blur-[2px]">
         <div className="max-w-3xl mx-auto w-full">
           <ChatInput chatId={activeChatId} selectedDocument={activeDocument} />
         </div>
@@ -294,12 +295,46 @@ export function ChatArea() {
 function ChatMessage({
   message,
   isLastInGroup,
+  onStreamUpdate,
 }: {
   message: Message;
   isLastInGroup: boolean;
+  onStreamUpdate?: () => void;
 }) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
+
+  // Streaming logic for new AI messages
+  const content = message.content;
+  const isNewAi = message.role === "ai" && message.isNew;
+  const streamCompleted = useRef(!isNewAi);
+  const [displayedText, setDisplayedText] = useState(isNewAi ? "" : content);
+
+  useEffect(() => {
+    if (!isNewAi || streamCompleted.current) {
+      setDisplayedText(content);
+      return;
+    }
+
+    let i = 0;
+    const tokens = content.split(/(\s+)/); // split by whitespace keeping delimiters
+
+    const interval = setInterval(() => {
+      if (i >= tokens.length) {
+        setDisplayedText(content);
+        streamCompleted.current = true;
+        clearInterval(interval);
+        if (onStreamUpdate) onStreamUpdate(); // final scroll
+      } else {
+        setDisplayedText(tokens.slice(0, i + 1).join(""));
+        i++;
+        // scroll to follow text without smooth locking
+        if (onStreamUpdate) onStreamUpdate();
+      }
+    }, 30); // 30ms per word token
+
+    return () => clearInterval(interval);
+  }, [content, isNewAi]);
 
   const extractPdfData = (text: string) => {
     const match = text.match(/\[?VIEW_PDF:(.*?)(\]|$)/);
@@ -312,7 +347,7 @@ function ChatMessage({
     return { V_CLEAN_TEXT: text, V_PDF_URL: null };
   };
 
-  const { V_CLEAN_TEXT, V_PDF_URL } = extractPdfData(message.content);
+  const { V_CLEAN_TEXT, V_PDF_URL } = extractPdfData(displayedText);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(V_CLEAN_TEXT);

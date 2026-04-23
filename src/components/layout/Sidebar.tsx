@@ -53,7 +53,7 @@ export function Sidebar() {
   return (
     <div
       className={cn(
-        "h-full bg-[hsl(240,10%,4%)] border-r border-white/[0.06] flex flex-col pt-4 pb-2 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden shrink-0",
+        "h-full bg-[hsl(240,10%,4%)]/40 backdrop-blur-3xl border-r border-white/[0.06] flex flex-col pt-4 pb-2 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden shrink-0 z-20 shadow-[4px_0_24px_rgba(0,0,0,0.2)]",
         isCollapsed ? "w-[76px] px-2" : "w-[280px] px-3"
       )}
     >
