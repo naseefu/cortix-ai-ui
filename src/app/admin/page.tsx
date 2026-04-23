@@ -178,12 +178,12 @@ export default function AdminPage() {
 
       {/* ── Ambient background ──────────────────────────────────────────────── */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="absolute top-[-15%] left-[-5%] w-[45%] h-[45%] bg-blue-900/25 rounded-full blur-[140px]" />
-        <div className="absolute top-[30%] right-[-10%] w-[50%] h-[50%] bg-violet-900/20 rounded-full blur-[140px]" />
-        <div className="absolute bottom-[-10%] left-[25%] w-[40%] h-[40%] bg-indigo-900/20 rounded-full blur-[120px]" />
+        <div className="absolute top-[-15%] left-[-5%] w-[45%] h-[45%] bg-blue-900/10 rounded-full blur-[150px]" />
+        <div className="absolute top-[30%] right-[-10%] w-[50%] h-[50%] bg-violet-900/5 rounded-full blur-[150px]" />
+        <div className="absolute bottom-[-10%] left-[25%] w-[40%] h-[40%] bg-indigo-900/5 rounded-full blur-[140px]" />
         {/* Subtle dot grid */}
         <div
-          className="absolute inset-0 opacity-[0.04]"
+          className="absolute inset-0 opacity-[0.02]"
           style={{
             backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.6) 1px, transparent 1px)",
             backgroundSize: "28px 28px",
