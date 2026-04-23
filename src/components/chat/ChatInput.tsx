@@ -10,12 +10,11 @@ export function ChatInput({
   chatId, 
   selectedDocument 
 }: { 
-  chatId: string; 
+  chatId: string | null; 
   selectedDocument: string | null;
 }) {
   const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const { addMessage } = useChatStore();
+  const { addMessage, loadSessions, setActiveChatId, isTyping, setIsTyping } = useChatStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-resize
@@ -37,7 +36,7 @@ export function ChatInput({
       textareaRef.current.style.height = "auto";
     }
 
-    addMessage(chatId, { role: "user", content: userMessage });
+    addMessage({ role: "user", content: userMessage });
     setIsTyping(true);
 
     try {
@@ -48,11 +47,17 @@ export function ChatInput({
       });
 
       if (res.status === "success") {
-        addMessage(chatId, { role: "ai", content: res.data.content });
+        addMessage({ role: "ai", content: res.data.content });
+        // Retrieve and set the assigned chatId if this was a new anonymous chat
+        if (res.data.chatId) {
+          setActiveChatId(res.data.chatId);
+        }
+        // Always attempt to refresh sessions list to keep sidebar synchronized
+        await loadSessions();
       }
     } catch (error) {
       console.error("Failed to send message", error);
-      addMessage(chatId, { role: "ai", content: "Sorry, I encountered an error. Please try again." });
+      addMessage({ role: "ai", content: "Sorry, I encountered an error. Please try again." });
     } finally {
       setIsTyping(false);
     }

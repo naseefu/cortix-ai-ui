@@ -1,102 +1,95 @@
 import { create } from 'zustand';
-import { v4 as uuidv4 } from 'uuid';
+import { chatApi } from '@/lib/api';
 
 export interface Message {
   role: 'user' | 'ai';
   content: string;
 }
 
-export interface ChatSession {
+export interface SessionItem {
   chatId: string;
-  messages: Message[];
-  selectedDocument: string | null;
-  title: string;
-  createdAt: number;
+  chat_name: string;
 }
 
 interface ChatState {
-  chats: ChatSession[];
+  sessions: SessionItem[];
   activeChatId: string | null;
+  activeMessages: Message[];
+  activeDocument: string | null;
   documents: string[];
+  isTyping: boolean;
 
   // Actions
   createNewChat: () => void;
-  setActiveChat: (chatId: string) => void;
-  addMessage: (chatId: string, message: Message) => void;
-  setDocumentForChat: (chatId: string, documentName: string | null) => void;
+  loadSessions: () => Promise<void>;
+  loadChatHistory: (chatId: string) => Promise<void>;
+  addMessage: (message: Message) => void;
+  setDocumentForChat: (documentName: string | null) => void;
   addDocument: (documentName: string) => void;
-  deleteChat: (chatId: string) => void;
-  updateChatTitle: (chatId: string, title: string) => void;
+  setDocuments: (documents: string[]) => void;
+  setActiveChatId: (chatId: string) => void; 
+  setIsTyping: (isTyping: boolean) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
-  chats: [],
+  sessions: [],
   activeChatId: null,
+  activeMessages: [],
+  activeDocument: null,
   documents: [],
+  isTyping: false,
 
   createNewChat: () => {
-    const newChat: ChatSession = {
-      chatId: uuidv4(),
-      messages: [],
-      selectedDocument: null,
-      title: 'New Chat',
-      createdAt: Date.now(),
-    };
-
-    set((state) => ({
-      chats: [newChat, ...state.chats],
-      activeChatId: newChat.chatId,
-    }));
+    set({
+      activeChatId: null,
+      activeMessages: [],
+      activeDocument: null,
+    });
   },
 
-  setActiveChat: (chatId) => set({ activeChatId: chatId }),
+  loadSessions: async () => {
+    try {
+      const res = await chatApi.getSessions();
+      if (res?.sessions) {
+        set({ sessions: res.sessions });
+      }
+    } catch (error) {
+      console.error("Failed to load sessions", error);
+    }
+  },
 
-  addMessage: (chatId, message) =>
+  loadChatHistory: async (chatId) => {
+    try {
+      const res = await chatApi.getChatHistory(chatId);
+      // res returns { chatId, chat_name, history: [{role, content}] }
+      set({
+        activeChatId: chatId,
+        activeMessages: res.history || [],
+      });
+    } catch (error) {
+      console.error("Failed to load chat history", error);
+    }
+  },
+
+  setActiveChatId: (chatId) => {
+    set({ activeChatId: chatId });
+  },
+
+  addMessage: (message) =>
     set((state) => ({
-      chats: state.chats.map((chat) =>
-        chat.chatId === chatId
-          ? {
-              ...chat,
-              messages: [...chat.messages, message],
-              // Auto-generate title from first user message if it's currently "New Chat"
-              title:
-                chat.messages.length === 0 && message.role === 'user'
-                  ? message.content.slice(0, 30) + (message.content.length > 30 ? '...' : '')
-                  : chat.title,
-            }
-          : chat
-      ),
+      activeMessages: [...state.activeMessages, message],
     })),
 
-  setDocumentForChat: (chatId, documentName) =>
-    set((state) => ({
-      chats: state.chats.map((chat) =>
-        chat.chatId === chatId ? { ...chat, selectedDocument: documentName } : chat
-      ),
-    })),
+  setDocumentForChat: (documentName) =>
+    set({ activeDocument: documentName }),
+
+  setDocuments: (docs) => set({ documents: docs }),
+
+  setIsTyping: (status) => set({ isTyping: status }),
 
   addDocument: (documentName) =>
     set((state) => {
-      // Avoid duplicate documents
       if (state.documents.includes(documentName)) return state;
       return { documents: [...state.documents, documentName] };
     }),
-
-  deleteChat: (chatId) =>
-    set((state) => {
-      const remainingChats = state.chats.filter((c) => c.chatId !== chatId);
-      let nextActiveId = state.activeChatId;
-      if (state.activeChatId === chatId) {
-        nextActiveId = remainingChats.length > 0 ? remainingChats[0].chatId : null;
-      }
-      return {
-        chats: remainingChats,
-        activeChatId: nextActiveId,
-      };
-    }),
-
-  updateChatTitle: (chatId, title) =>
-    set((state) => ({
-      chats: state.chats.map((c) => (c.chatId === chatId ? { ...c, title } : c)),
-    })),
 }));

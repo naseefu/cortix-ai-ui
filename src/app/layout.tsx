@@ -18,7 +18,7 @@ export default function RootLayout({
   return (
     // Defaulting to "dark" class on html for forced sleek dark mode
     <html lang="en" className="dark">
-      <body className={cn(inter.className, "h-screen w-screen overflow-hidden bg-background text-foreground antialiased")}>
+      <body className={cn(inter.className, "min-h-screen w-full bg-background text-foreground antialiased")}>
         {children}
       </body>
     </html>
