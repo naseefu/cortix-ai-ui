@@ -4,16 +4,19 @@ export const chatApi = {
   /**
    * Real implementation of `/api/v1/chat/chat-with-ai`
    */
-  async sendMessage(payload: { chatId: string | null; message: string; documentName: string | null }) {
-    // Treat null documentName as an empty string to match backend expectations
+  async sendMessage(payload: {
+    chatId: string | null;
+    message: string;
+    documentName: string | null;
+    model?: string;
+  }) {
     const body: any = {
       message: payload.message,
       documentId: payload.documentName || '',
     };
-    
-    if (payload.chatId) {
-      body.chatId = payload.chatId;
-    }
+
+    if (payload.chatId)  body.chatId = payload.chatId;
+    if (payload.model)   body.model  = payload.model;
 
     const response = await axios.post(`http://localhost:8080/api/v1/chat/chat-with-ai`, body);
 
@@ -21,9 +24,10 @@ export const chatApi = {
       status: 'success',
       data: {
         role: 'ai',
-        // Depending on backend response format, this might need adjusting. 
-        // Assuming the backend returns the raw answer string or a JSON object with 'answer'
-        content: typeof response.data === 'string' ? response.data : response.data?.answer || response.data?.content || JSON.stringify(response.data),
+        content: typeof response.data === 'string'
+          ? response.data
+          : response.data?.answer || response.data?.content || JSON.stringify(response.data),
+        chatId: response.data?.chatId,
       },
     };
   },
@@ -85,5 +89,13 @@ export const chatApi = {
   async getChatHistory(chatId: string) {
     const response = await axios.get(`http://localhost:8080/api/v1/chat/history/${chatId}`);
     return response.data;
+  },
+
+  /**
+   * Fetch FAQ analytics (most asked questions with counts)
+   */
+  async getFaqAnalytics() {
+    const response = await axios.get(`http://localhost:8080/api/v1/analytics/faq/all`);
+    return response.data as { total_unique: number; faqs: { query: string; count: number }[] };
   },
 };

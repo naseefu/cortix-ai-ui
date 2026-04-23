@@ -18,6 +18,7 @@ interface ChatState {
   activeDocument: string | null;
   documents: string[];
   isTyping: boolean;
+  selectedModel: string | null;
 
   // Actions
   createNewChat: () => void;
@@ -27,8 +28,9 @@ interface ChatState {
   setDocumentForChat: (documentName: string | null) => void;
   addDocument: (documentName: string) => void;
   setDocuments: (documents: string[]) => void;
-  setActiveChatId: (chatId: string) => void; 
+  setActiveChatId: (chatId: string) => void;
   setIsTyping: (isTyping: boolean) => void;
+  setSelectedModel: (model: string | null) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -38,6 +40,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeDocument: null,
   documents: [],
   isTyping: false,
+  selectedModel: null,
 
   createNewChat: () => {
     set({
@@ -61,7 +64,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loadChatHistory: async (chatId) => {
     try {
       const res = await chatApi.getChatHistory(chatId);
-      // res returns { chatId, chat_name, history: [{role, content}] }
       set({
         activeChatId: chatId,
         activeMessages: res.history || [],
@@ -87,9 +89,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setIsTyping: (status) => set({ isTyping: status }),
 
+  setSelectedModel: (model) => set({ selectedModel: model }),
+
   addDocument: (documentName) =>
     set((state) => {
       if (state.documents.includes(documentName)) return state;
       return { documents: [...state.documents, documentName] };
     }),
 }));
+
