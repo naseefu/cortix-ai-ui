@@ -53,6 +53,8 @@ export default function AdminPage() {
   const [faqSearch, setFaqSearch]     = useState("");
 
   const [systemHealth, setSystemHealth] = useState<"loading" | "online" | "offline">("loading");
+  const [monitoringLogs, setMonitoringLogs] = useState<any[]>([]);
+  const [monitoringLoading, setMonitoringLoading] = useState(true);
 
   const fetchDocs = useCallback(async () => {
     try {
@@ -85,7 +87,24 @@ export default function AdminPage() {
     }
   }, []);
 
-  useEffect(() => { fetchDocs(); fetchFaqs(); fetchHealth(); }, [fetchDocs, fetchFaqs, fetchHealth]);
+  const fetchMonitoring = useCallback(async () => {
+    setMonitoringLoading(true);
+    try {
+      const res = await chatApi.getMonitoringChats();
+      setMonitoringLogs(res.logs ?? []);
+    } catch {
+      // silent fail
+    } finally {
+      setMonitoringLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { 
+    fetchDocs(); 
+    fetchFaqs(); 
+    fetchHealth(); 
+    fetchMonitoring();
+  }, [fetchDocs, fetchFaqs, fetchHealth, fetchMonitoring]);
 
   const handleUploadClick = () => fileInputRef.current?.click();
 
@@ -681,6 +700,101 @@ export default function AdminPage() {
               </span>
             </div>
           )}
+        </motion.div>
+
+        {/* ── System Latency Logs ─────────────────────────────────────────────────── */}
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          animate="visible"
+          className="rounded-2xl bg-white/[0.03] border border-white/[0.08] overflow-hidden relative shadow-xl shadow-black/20"
+        >
+          <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-blue-500/70 via-indigo-500/50 to-violet-500/30" />
+
+          {/* Section header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-4 border-b border-white/[0.06]">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                <Activity size={16} className="text-blue-400" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-white/90">System Latency Logs</h2>
+                <p className="text-[11px] text-white/35 mt-0.5">
+                  Real-time monitoring of AI Engine response times.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={fetchMonitoring}
+              disabled={monitoringLoading}
+              className="p-2 rounded-lg bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] text-white/40 hover:text-white/80 transition-all"
+              title="Refresh Logs"
+            >
+              <RefreshCw size={13} className={monitoringLoading ? "animate-spin" : ""} />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="p-0 overflow-x-auto">
+            {monitoringLoading ? (
+              <div className="px-6 py-8 flex items-center justify-center">
+                <Loader2 size={24} className="text-white/20 animate-spin" />
+              </div>
+            ) : monitoringLogs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-2 text-white/30">
+                <Activity size={26} className="opacity-20" />
+                <p className="text-xs">No response logs recorded.</p>
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse min-w-[600px]">
+                <thead>
+                  <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                    <th className="px-6 py-3 text-[10px] font-semibold text-white/40 uppercase tracking-wider">Timestamp</th>
+                    <th className="px-6 py-3 text-[10px] font-semibold text-white/40 uppercase tracking-wider">Session ID</th>
+                    <th className="px-6 py-3 text-[10px] font-semibold text-white/40 uppercase tracking-wider">User Query</th>
+                    <th className="px-6 py-3 text-[10px] font-semibold text-white/40 uppercase tracking-wider text-right">Response Time</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.04]">
+                  {monitoringLogs.map((log, i) => {
+                    const dt = new Date(log.timestamp * 1000);
+                    const isFast = log.response_time_ms < 1000;
+                    const isSlow = log.response_time_ms > 2000;
+                    
+                    return (
+                      <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
+                        <td className="px-6 py-3 whitespace-nowrap">
+                          <span className="text-xs text-white/40 bg-white/[0.04] px-2 py-0.5 rounded font-mono">
+                            {dt.toLocaleTimeString(undefined, { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3 whitespace-nowrap">
+                          <span className="text-[10px] text-white/30 font-mono">
+                            {log.chatId.split('-')[0]}...
+                          </span>
+                        </td>
+                        <td className="px-6 py-3">
+                          <span className="text-xs font-medium text-white/75 truncate block max-w-[300px]">
+                            {log.question}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3 whitespace-nowrap text-right">
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold tabular-nums border ${
+                            isFast ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" :
+                            isSlow ? "bg-red-500/10 border-red-500/20 text-red-400" :
+                            "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                          }`}>
+                            {log.response_time_ms.toFixed(1)} ms
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
         </motion.div>
 
       </div>

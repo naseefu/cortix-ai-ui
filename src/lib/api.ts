@@ -110,4 +110,20 @@ export const chatApi = {
       return { status: "error" };
     }
   },
+
+  /**
+   * Fetch chat monitoring logs (response times)
+   */
+  async getMonitoringChats() {
+    const response = await axios.get(`http://localhost:8080/api/v1/monitoring/chats`);
+    return response.data as {
+      count: number;
+      logs: {
+        chatId: string;
+        question: string;
+        response_time_ms: number;
+        timestamp: number;
+      }[];
+    };
+  },
 };
