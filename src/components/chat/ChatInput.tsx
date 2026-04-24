@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Loader2, CornerDownLeft, ChevronDown, Cpu, Check } from "lucide-react";
+import { Send, Loader2, CornerDownLeft, ChevronDown, Cpu, Check, Mic, Trash2 } from "lucide-react";
 import { useChatStore } from "@/store/useChatStore";
 import { chatApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -33,6 +33,10 @@ export function ChatInput({
   } = useChatStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [recordedAudio, setRecordedAudio] = useState<{ blob: Blob; url: string } | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
 
   // ── Model selector state ────────────────────────────────────────────────────
   const [models, setModels] = useState<ModelOption[]>([]);
@@ -74,8 +78,89 @@ export function ChatInput({
     el.style.height = Math.min(el.scrollHeight, 180) + "px";
   }, [input]);
 
+  // ── Voice logic ─────────────────────────────────────────────────────────────
+  const handleVoiceClick = async () => {
+    if (isListening) {
+      if (mediaRecorderRef.current) mediaRecorderRef.current.stop();
+      setIsListening(false);
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          stream.getTracks().forEach((track) => track.stop());
+          const audioUrl = URL.createObjectURL(audioBlob);
+          setRecordedAudio({ blob: audioBlob, url: audioUrl });
+        };
+
+        mediaRecorder.start();
+        setIsListening(true);
+      } catch (err) {
+        console.error("Microphone access denied", err);
+      }
+    }
+  };
+
+  const discardRecording = () => {
+    if (recordedAudio) {
+      URL.revokeObjectURL(recordedAudio.url);
+      setRecordedAudio(null);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (recordedAudio?.url) {
+        URL.revokeObjectURL(recordedAudio.url);
+      }
+    };
+  }, [recordedAudio?.url]);
+
+  const handleSendVoice = async (audioBlob: Blob) => {
+    if (isTyping) return;
+    addMessage({ role: "user", content: "🎤 [Voice Message]" });
+    setIsTyping(true);
+    discardRecording();
+
+    try {
+      const res = await chatApi.sendMessage({
+        chatId,
+        message: "",
+        documentName: selectedDocument,
+        model: activeModel?.actualName,
+        file: audioBlob,
+      });
+
+      if (res.status === "success") {
+        addMessage({ role: "ai", content: res.data.content, isNew: true });
+        if (res.data.chatId) setActiveChatId(res.data.chatId);
+        await loadSessions();
+      }
+    } catch (error) {
+      console.error("Failed to send voice message", error);
+      addMessage({
+        role: "ai",
+        content: "Sorry, I encountered an error sending the voice message.",
+      });
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
   // ── Send logic ──────────────────────────────────────────────────────────────
   const handleSend = async () => {
+    if (recordedAudio) {
+      return handleSendVoice(recordedAudio.blob);
+    }
+
     if (!input.trim() || isTyping) return;
 
     const userMessage = input.trim();
@@ -116,7 +201,7 @@ export function ChatInput({
     }
   };
 
-  const canSend = input.trim().length > 0 && !isTyping;
+  const canSend = (input.trim().length > 0 || !!recordedAudio) && !isTyping;
   const charCount = input.length;
   const nearLimit = charCount > MAX_CHARS * 0.85;
 
@@ -140,31 +225,45 @@ export function ChatInput({
         </div>
       )}
 
-      {/* Textarea */}
-      <textarea
-        ref={textareaRef}
-        value={input}
-        onChange={(e) => {
-          if (e.target.value.length <= MAX_CHARS) setInput(e.target.value);
-        }}
-        onKeyDown={handleKeyDown}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
-        placeholder={
-          selectedDocument
-            ? `Ask about "${selectedDocument}"…`
-            : "Message Cortix AI…"
-        }
-        className={cn(
-          "w-full resize-none bg-transparent outline-none",
-          "min-h-[52px] max-h-[180px]",
-          "py-4 pl-4 pr-[52px]",
-          "text-sm text-white/90 placeholder:text-white/25",
-          "scrollbar-hide leading-relaxed"
-        )}
-        disabled={isTyping}
-        rows={1}
-      />
+      {/* Audio Preview OR Textarea */}
+      {recordedAudio ? (
+        <div className="flex items-center gap-4 py-4 pl-4 pr-[52px] min-h-[52px] w-full">
+          <audio src={recordedAudio.url} controls className="h-10 flex-1 outline-none" />
+          <button
+            type="button"
+            onClick={discardRecording}
+            className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors shrink-0 mr-4"
+            title="Discard Recording"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
+      ) : (
+        <textarea
+          ref={textareaRef}
+          value={input}
+          onChange={(e) => {
+            if (e.target.value.length <= MAX_CHARS) setInput(e.target.value);
+          }}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          placeholder={
+            selectedDocument
+              ? `Ask about "${selectedDocument}"…`
+              : "Message Cortix AI…"
+          }
+          className={cn(
+            "w-full resize-none bg-transparent outline-none",
+            "min-h-[52px] max-h-[180px]",
+            "py-4 pl-4 pr-[52px]",
+            "text-sm text-white/90 placeholder:text-white/25",
+            "scrollbar-hide leading-relaxed"
+          )}
+          disabled={isTyping || isListening}
+          rows={1}
+        />
+      )}
 
       {/* Bottom bar */}
       <div className="flex items-center justify-between px-3 pb-2.5 gap-2">
@@ -263,6 +362,29 @@ export function ChatInput({
               {charCount}/{MAX_CHARS}
             </span>
           )}
+
+          <button
+            type="button"
+            onClick={handleVoiceClick}
+            disabled={!!recordedAudio}
+            className={cn(
+              "flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-200",
+              isListening
+                ? "bg-red-500/20 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.2)]"
+                : "bg-white/[0.05] text-white/40 hover:bg-white/[0.1] hover:text-white/80",
+              recordedAudio && "opacity-50 cursor-not-allowed hover:bg-white/[0.05] hover:text-white/40"
+            )}
+            title="Voice Chat"
+          >
+            {isListening ? (
+              <span className="relative flex h-3 w-3 items-center justify-center">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>
+            ) : (
+              <Mic size={15} />
+            )}
+          </button>
 
           <button
             disabled={!canSend}

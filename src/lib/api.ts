@@ -9,7 +9,32 @@ export const chatApi = {
     message: string;
     documentName: string | null;
     model?: string;
+    file?: File | Blob;
   }) {
+    if (payload.file) {
+      const formData = new FormData();
+      formData.append('message', payload.message || '');
+      formData.append('documentId', payload.documentName || '');
+      if (payload.chatId) formData.append('chatId', payload.chatId);
+      if (payload.model) formData.append('model', payload.model);
+      formData.append('file', payload.file, 'voice.webm');
+
+      const response = await axios.post(`http://localhost:8080/api/v1/chat/chat-with-ai`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      return {
+        status: 'success',
+        data: {
+          role: 'ai',
+          content: typeof response.data === 'string'
+            ? response.data
+            : response.data?.answer || response.data?.content || JSON.stringify(response.data),
+          chatId: response.data?.chatId,
+        },
+      };
+    }
+
     const body: any = {
       message: payload.message,
       documentId: payload.documentName || '',
